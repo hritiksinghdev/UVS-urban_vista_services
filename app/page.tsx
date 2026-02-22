@@ -100,7 +100,9 @@ export default function Home() {
 
           <MotionSection delay={0.5}>
             <div className="text-center mt-12">
-              <Button size="lg" variant="secondary" className="px-6 py-3 rounded-xl bg-white/50 backdrop-blur-md border border-white/40 shadow-md hover:scale-105 transition-all duration-300 min-w-[200px]">View All Work</Button>
+              <Link href="/work">
+                <Button size="lg" variant="secondary" className="px-6 py-3 rounded-xl bg-white/50 backdrop-blur-md border border-white/40 shadow-md hover:scale-105 transition-all duration-300 min-w-[200px]">View All Work</Button>
+              </Link>
             </div>
           </MotionSection>
         </div>

@@ -13,7 +13,7 @@ export const Navbar = () => {
     const navLinks = [
         { name: 'Home', href: '/' },
         { name: 'Services', href: '/services' },
-        { name: 'Our Work', href: '/gallery' },
+        { name: 'Our Work', href: '/work' },
         { name: 'About', href: '/about' },
         { name: 'Contact', href: '/contact' },
     ];
@@ -52,7 +52,7 @@ export const Navbar = () => {
             </div>
 
             <div className="hidden md:flex items-center gap-4">
-                <Link href="/auth/signin">
+                <Link href="/login">
                     <Button variant="secondary" size="sm" className="rounded-full px-6 font-medium">Sign In</Button>
                 </Link>
             </div>
@@ -83,7 +83,7 @@ export const Navbar = () => {
                         </Link>
                     ))}
                     <div className="flex flex-col gap-3 mt-4">
-                        <Link href="/auth/signin" onClick={() => setIsMobileMenuOpen(false)}>
+                        <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
                             <Button variant="primary" className="w-full justify-center rounded-lg bg-[#2563eb] text-white">Sign In</Button>
                         </Link>
                     </div>

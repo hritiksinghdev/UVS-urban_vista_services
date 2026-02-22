@@ -47,9 +47,11 @@ export function Hero({ title, subtitle }: HeroProps) {
                                     Get Started
                                 </button>
                             </Link>
-                            <button className="px-8 py-4 bg-transparent border border-slate-300 text-[#111] font-semibold rounded-lg hover:border-[#2563eb] hover:text-[#2563eb] transition-all">
-                                Learn More
-                            </button>
+                            <Link href="/about">
+                                <button className="px-8 py-4 bg-transparent border border-slate-300 text-[#111] font-semibold rounded-lg hover:border-[#2563eb] hover:text-[#2563eb] transition-all">
+                                    Learn More
+                                </button>
+                            </Link>
                         </div>
                     </div>
                 </div>

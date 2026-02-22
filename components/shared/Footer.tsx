@@ -36,10 +36,10 @@ export const Footer = () => {
                 <div>
                     <h3 className="text-white font-semibold mb-4">Connect</h3>
                     <div className="flex gap-4">
-                        <a href="#" className="hover:text-primary"><Facebook className="w-5 h-5" /></a>
-                        <a href="#" className="hover:text-primary"><Twitter className="w-5 h-5" /></a>
-                        <a href="#" className="hover:text-primary"><Instagram className="w-5 h-5" /></a>
-                        <a href="#" className="hover:text-primary"><Linkedin className="w-5 h-5" /></a>
+                        <a href="/" className="hover:text-primary"><Facebook className="w-5 h-5" /></a>
+                        <a href="/" className="hover:text-primary"><Twitter className="w-5 h-5" /></a>
+                        <a href="/" className="hover:text-primary"><Instagram className="w-5 h-5" /></a>
+                        <a href="/" className="hover:text-primary"><Linkedin className="w-5 h-5" /></a>
                     </div>
                 </div>
             </div>
