@@ -62,7 +62,7 @@ export const ContactForm = () => {
                         value={formData.name}
                         onChange={handleChange}
                         className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white/60 transition-all"
-                        placeholder="John Doe"
+                        placeholder="Kunal"
                     />
                 </div>
                 <div className="space-y-2">
@@ -75,7 +75,7 @@ export const ContactForm = () => {
                         value={formData.email}
                         onChange={handleChange}
                         className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white/60 transition-all"
-                        placeholder="john@example.com"
+                        placeholder="kunal@example.com"
                     />
                 </div>
             </div>
@@ -91,7 +91,7 @@ export const ContactForm = () => {
                         value={formData.phone}
                         onChange={handleChange}
                         className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white/60 transition-all"
-                        placeholder="+1 (555) 000-0000"
+                        placeholder="+91 9818xxxxxx"
                     />
                 </div>
                 <div className="space-y-2">
