@@ -53,8 +53,8 @@ export const Navbar = () => {
                         key={link.name}
                         href={link.href}
                         className={`${isActive(link.href)
-                                ? "text-blue-600 font-semibold scale-105"
-                                : "text-gray-600 hover:text-blue-500 font-medium"
+                            ? "text-blue-600 font-semibold scale-105"
+                            : "text-gray-600 hover:text-blue-500 font-medium"
                             } transition-all duration-300 text-sm`}
                     >
                         {link.name}
@@ -63,7 +63,7 @@ export const Navbar = () => {
             </div>
 
             <div className="hidden md:flex items-center gap-4 relative z-10">
-                <Link href="/login">
+                <Link href="/auth">
                     <Button variant="secondary" size="sm" className="rounded-full px-6 font-medium bg-white/50 hover:bg-white/80">Sign In</Button>
                 </Link>
             </div>
@@ -88,8 +88,8 @@ export const Navbar = () => {
                             key={link.name}
                             href={link.href}
                             className={`${isActive(link.href)
-                                    ? "text-blue-600 font-semibold scale-105"
-                                    : "text-gray-600 hover:text-blue-500 font-medium"
+                                ? "text-blue-600 font-semibold scale-105"
+                                : "text-gray-600 hover:text-blue-500 font-medium"
                                 } transition-all duration-300 text-lg block`}
                             onClick={() => setIsMobileMenuOpen(false)}
                         >
@@ -97,7 +97,7 @@ export const Navbar = () => {
                         </Link>
                     ))}
                     <div className="flex flex-col gap-3 mt-4">
-                        <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
+                        <Link href="/auth" onClick={() => setIsMobileMenuOpen(false)}>
                             <Button variant="primary" className="w-full justify-center rounded-lg bg-blue-600 hover:bg-blue-700 text-white">Sign In</Button>
                         </Link>
                     </div>
