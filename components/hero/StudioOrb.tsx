@@ -57,7 +57,7 @@ export default function StudioOrb() {
   })
 
   return (
-    <group>
+    <group scale={[1.4, 1.4, 1.4]}>
       {/* Main Globe */}
       <mesh ref={globeRef} position={[0, 0.3, 0]}>
         <sphereGeometry args={[1, 64, 64]} />

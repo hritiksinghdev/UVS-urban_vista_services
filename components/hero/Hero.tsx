@@ -145,7 +145,7 @@ export function Hero({ title, subtitle }: HeroProps) {
                     </motion.div>
 
                     {/* The 3D Component */}
-                    <div className="w-full h-full relative cursor-grab active:cursor-grabbing">
+                    <div className="w-full h-[600px] md:h-[700px] relative cursor-grab active:cursor-grabbing">
                         <StudioScene />
                     </div>
                 </div>

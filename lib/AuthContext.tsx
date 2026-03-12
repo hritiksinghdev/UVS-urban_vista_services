@@ -8,6 +8,7 @@ import { useRouter, usePathname } from 'next/navigation';
 interface CombinedUser {
     uid: string;
     email: string | null;
+    name?: string;
     role: string;
     emailVerified: boolean;
     phoneVerified: boolean;
@@ -60,6 +61,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 setUser({
                     uid: firebaseUser.uid,
                     email: firebaseUser.email,
+                    name: dbData?.name || firebaseUser.displayName || 'User',
                     role: isAdmin ? 'ADMIN' : (dbData?.role || 'USER'),
                     emailVerified: firebaseUser.emailVerified || dbData?.emailVerified || false,
                     phoneVerified: dbData?.phoneVerified || false,

@@ -8,7 +8,7 @@ export default function StudioScene() {
     return (
         <div className="w-full h-full min-h-[500px] relative">
             <Canvas dpr={[1, 2]} gl={{ antialias: true, alpha: true }}>
-                <PerspectiveCamera makeDefault position={[0, 0, 4.5]} fov={50} />
+                <PerspectiveCamera makeDefault position={[0, 0, 3.5]} fov={45} />
                 <OrbitControls
                     enableZoom={false}
                     enablePan={false}

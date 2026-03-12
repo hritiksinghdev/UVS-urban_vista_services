@@ -1,12 +1,14 @@
 import * as admin from 'firebase-admin'
 import { NextRequest } from 'next/server'
 
+export const ADMIN_EMAILS = ['hritikcsingh@gmail.com']
+
 if (!admin.apps.length) {
     try {
         admin.initializeApp({
             credential: admin.credential.cert({
-                projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-                clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+                projectId: process.env.FIREBASE_ADMIN_PROJECT_ID || "urbanvista-a57b8",
+                clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL || "firebase-adminsdk-fbsvc@urbanvista-a57b8.iam.gserviceaccount.com",
                 privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n'),
             }),
         })
