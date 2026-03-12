@@ -5,39 +5,32 @@ import { prisma } from '@/lib/prisma'
 
 async function verifyAdmin(request: NextRequest) {
     const authHeader = request.headers.get('Authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-        throw new Error('Missing or malformed Authorization header')
-    }
+    if (!authHeader?.startsWith('Bearer ')) throw new Error('Missing Authorization header')
     const token = authHeader.split('Bearer ')[1]
     const decodedToken = await adminAuth.verifyIdToken(token)
-
-    const dbUser = await prisma.user.findUnique({
-        where: { firebaseUid: decodedToken.uid }
-    })
-
-    if (!dbUser || dbUser.role !== 'ADMIN') {
-        throw new Error('Forbidden')
-    }
+    const dbUser = await prisma.user.findUnique({ where: { firebaseUid: decodedToken.uid } })
+    if (!dbUser || dbUser.role !== 'ADMIN') throw new Error('Forbidden')
     return dbUser
 }
 
-export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function PATCH(
+    request: NextRequest,
+    context: { params: Promise<{ id: string }> }
+) {
     try {
-        const { id } = await context.params;
         await verifyAdmin(request)
+        const { id } = await context.params
+        const { status } = await request.json()
 
-        const body = await request.json()
-        const updated = await prisma.contactQuery.update({
+        if (!status) return NextResponse.json({ error: 'Status is required' }, { status: 400 })
+
+        const query = await prisma.contactQuery.update({
             where: { id },
-            data: { status: body.status }
+            data: { status }
         })
 
-        return NextResponse.json({ success: true, query: updated })
+        return NextResponse.json({ success: true, query })
     } catch (error: unknown) {
-        console.error('[admin/queries/[id]] PATCH error:', error)
-        return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Internal server error' },
-            { status: 500 }
-        )
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Error' }, { status: 500 })
     }
 }

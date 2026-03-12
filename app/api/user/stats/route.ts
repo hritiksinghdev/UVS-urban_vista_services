@@ -10,24 +10,18 @@ export async function GET(request: NextRequest) {
         const user = await prisma.user.findUnique({
             where: { firebaseUid: decoded.uid },
             include: {
-                orders: true
+                orders: {
+                    orderBy: { createdAt: 'desc' }
+                }
             }
         })
 
         if (!user) {
-            return NextResponse.json(
-                { error: 'User not found' },
-                { status: 404 }
-            )
+            return NextResponse.json({ error: 'User not found' }, { status: 404 })
         }
 
-        const activeOrders = user.orders.filter(
-            o => o.status === 'PENDING' || o.status === 'IN_PROGRESS'
-        ).length
-
-        const completedOrders = user.orders.filter(
-            o => o.status === 'COMPLETED'
-        ).length
+        const activeOrders = user.orders.filter(o => o.status !== 'COMPLETED' && o.status !== 'CANCELLED').length
+        const completedOrders = user.orders.filter(o => o.status === 'COMPLETED').length
 
         return NextResponse.json({
             activeOrders,
@@ -36,17 +30,12 @@ export async function GET(request: NextRequest) {
             emailVerified: user.emailVerified,
             phoneVerified: user.phoneVerified,
             memberSince: user.createdAt,
-            recentOrders: user.orders
-                .sort((a, b) =>
-                    new Date(b.createdAt).getTime() -
-                    new Date(a.createdAt).getTime()
-                )
-                .slice(0, 3)
+            recentOrders: user.orders.slice(0, 3)
         })
-
     } catch (error: unknown) {
+        console.error('[user/stats] error:', error)
         return NextResponse.json(
-            { error: 'Failed to fetch stats' },
+            { error: error instanceof Error ? error.message : 'Error' },
             { status: 500 }
         )
     }

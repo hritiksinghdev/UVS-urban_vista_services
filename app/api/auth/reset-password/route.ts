@@ -2,19 +2,23 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { adminAuth } from '@/lib/firebase-admin'
+import bcrypt from 'bcryptjs'
 
 export async function POST(request: NextRequest) {
     try {
         const { email, otp, newPassword } = await request.json()
 
         if (!email || !otp || !newPassword) {
-            throw new Error('Missing required fields')
+            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
         }
 
-        const validOtp = await prisma.oTPVerification.findFirst({
+        if (newPassword.length < 8) {
+            return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
+        }
+
+        const otpRecord = await prisma.oTPVerification.findFirst({
             where: {
                 email,
-                otpHash: otp,
                 type: 'PASSWORD_RESET',
                 used: false,
                 expiresAt: { gt: new Date() }
@@ -22,26 +26,30 @@ export async function POST(request: NextRequest) {
             orderBy: { createdAt: 'desc' }
         })
 
-        if (!validOtp) {
-            throw new Error('Invalid or expired OTP')
+        if (!otpRecord) {
+            return NextResponse.json({ error: 'OTP expired. Request a new one.' }, { status: 400 })
         }
 
-        const user = await prisma.user.findUnique({
-            where: { email }
-        })
+        const isValid = await bcrypt.compare(otp, otpRecord.otpHash)
+        if (!isValid) {
+            await prisma.oTPVerification.update({
+                where: { id: otpRecord.id },
+                data: { attempts: { increment: 1 } }
+            })
+            return NextResponse.json({ error: 'Incorrect OTP. Try again.' }, { status: 400 })
+        }
 
+        const user = await prisma.user.findUnique({ where: { email } })
         if (!user) {
-            throw new Error('User not found')
+            return NextResponse.json({ error: 'User not found' }, { status: 404 })
         }
 
         await prisma.oTPVerification.update({
-            where: { id: validOtp.id },
+            where: { id: otpRecord.id },
             data: { used: true }
         })
 
-        await adminAuth.updateUser(user.firebaseUid, {
-            password: newPassword
-        })
+        await adminAuth.updateUser(user.firebaseUid, { password: newPassword })
 
         return NextResponse.json({ success: true })
     } catch (error: unknown) {

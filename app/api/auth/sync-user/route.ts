@@ -9,13 +9,12 @@ export async function POST(request: NextRequest) {
     try {
         const authHeader = request.headers.get('Authorization')
         if (!authHeader?.startsWith('Bearer ')) {
-            throw new Error('Missing or malformed Authorization header')
+            return NextResponse.json({ error: 'Missing or malformed Authorization header' }, { status: 401 })
         }
         const token = authHeader.split('Bearer ')[1]
         const decoded = await adminAuth.verifyIdToken(token)
 
         const body = await request.json()
-
         const isAdmin = ADMIN_EMAILS.includes(decoded.email ?? '')
 
         const user = await prisma.user.upsert({
@@ -24,13 +23,17 @@ export async function POST(request: NextRequest) {
                 firebaseUid: decoded.uid,
                 name: body.name || decoded.name || 'User',
                 email: decoded.email!,
+                phone: body.phone || null,
+                businessType: body.businessType || null,
                 emailVerified: isAdmin ? true : (body.emailVerified ?? false),
                 role: isAdmin ? 'ADMIN' : 'USER',
             },
             update: {
-                emailVerified: isAdmin ? true : undefined,
+                emailVerified: isAdmin ? true : (body.emailVerified !== undefined ? body.emailVerified : undefined),
                 role: isAdmin ? 'ADMIN' : undefined,
                 name: body.name || undefined,
+                phone: body.phone || undefined,
+                businessType: body.businessType || undefined,
             },
             include: { orders: true }
         })

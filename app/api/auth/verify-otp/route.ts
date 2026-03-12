@@ -2,19 +2,19 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { adminAuth } from '@/lib/firebase-admin'
+import bcrypt from 'bcryptjs'
 
 export async function POST(request: NextRequest) {
     try {
         const { email, otp, type, uid } = await request.json()
 
         if (!email || !otp || !type) {
-            throw new Error('Missing required fields')
+            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
         }
 
-        const validOtp = await prisma.oTPVerification.findFirst({
+        const otpRecord = await prisma.oTPVerification.findFirst({
             where: {
                 email,
-                otpHash: otp,
                 type,
                 used: false,
                 expiresAt: { gt: new Date() }
@@ -22,12 +22,22 @@ export async function POST(request: NextRequest) {
             orderBy: { createdAt: 'desc' }
         })
 
-        if (!validOtp) {
-            throw new Error('Invalid or expired OTP')
+        if (!otpRecord) {
+            return NextResponse.json({ error: 'OTP expired. Request a new one.' }, { status: 400 })
+        }
+
+        const isValid = await bcrypt.compare(otp, otpRecord.otpHash)
+
+        if (!isValid) {
+            await prisma.oTPVerification.update({
+                where: { id: otpRecord.id },
+                data: { attempts: { increment: 1 } }
+            })
+            return NextResponse.json({ error: 'Incorrect OTP. Try again.' }, { status: 400 })
         }
 
         await prisma.oTPVerification.update({
-            where: { id: validOtp.id },
+            where: { id: otpRecord.id },
             data: { used: true }
         })
 
