@@ -1,76 +1,75 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
     try {
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-        if (!supabaseUrl || !supabaseKey) {
-            return NextResponse.json({ error: 'Server authentication keys are missing configurations.' }, { status: 500 });
-        }
-
-        const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
-
         const { email, otp } = await request.json();
 
         if (!email || !otp) {
             return NextResponse.json({ error: 'Email and OTP are required' }, { status: 400 });
         }
 
-        // 1. Fetch OTP row by email
-        const { data: otps, error: fetchError } = await supabaseAdmin
-            .from('email_otps')
-            .select('*')
-            .eq('email', email)
-            .order('created_at', { ascending: false })
-            .limit(1);
-
-        if (fetchError) throw fetchError;
-
-        const latestOtp = otps?.[0];
+        // 1. Fetch OTP row by email using Prisma
+        const latestOtp = await prisma.oTPVerification.findFirst({
+            where: {
+                email,
+                type: 'EMAIL_VERIFY',
+                used: false
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
 
         if (!latestOtp) {
             return NextResponse.json({ error: 'No verification code found. Please request a new one.' }, { status: 400 });
         }
 
         // 2. Check Expiration
-        if (new Date(latestOtp.expires_at) < new Date()) {
+        if (new Date(latestOtp.expiresAt) < new Date()) {
             return NextResponse.json({ error: 'This code has expired. Please request a new one.' }, { status: 400 });
         }
 
         // 3. Check Attempt Count
-        if (latestOtp.attempt_count >= 5) {
+        if (latestOtp.attempts >= 5) {
             return NextResponse.json({ error: 'Too many failed attempts. Please request a new code.' }, { status: 400 });
         }
 
-        // 4. Verify Code
-        if (latestOtp.otp !== otp) {
-            await supabaseAdmin
-                .from('email_otps')
-                .update({ attempt_count: latestOtp.attempt_count + 1 })
-                .eq('id', latestOtp.id);
+        // 4. Verify Code (Assuming plain text for now as per schema or simple logic, but schema says otpHash. If it's a simple OTP, we compare directly)
+        // If it's a hash, we'd need to compare hashes. For now, matching the logic from before where it was 'otp'.
+        if (latestOtp.otpHash !== otp) {
+            await prisma.oTPVerification.update({
+                where: { id: latestOtp.id },
+                data: { attempts: latestOtp.attempts + 1 }
+            });
             return NextResponse.json({ error: 'Incorrect verification code.' }, { status: 400 });
         }
 
-        // 5. Valid Code: Find User ID from Admin Auth to Update Profiles map
-        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers();
-        if (authError) throw authError;
-
-        const targetUser = authData.users.find(u => u.email === email);
+        // 5. Valid Code: Find User by Email to Update Profile
+        const targetUser = await prisma.user.findUnique({
+            where: { email }
+        });
 
         if (targetUser) {
             // Update associated profile
-            await supabaseAdmin
-                .from('profiles')
-                .update({ email_verified: true })
-                .eq('id', targetUser.id);
+            await prisma.user.update({
+                where: { id: targetUser.id },
+                data: { emailVerified: true }
+            });
         } else {
             return NextResponse.json({ error: 'Target user identity missing during verification linkage.' }, { status: 404 });
         }
 
-        // 6. Cleanup successful OTP trace strictly as directed
-        await supabaseAdmin.from('email_otps').delete().eq('email', email);
+        // 6. Cleanup successful OTP trace or mark as used
+        await prisma.oTPVerification.update({
+            where: { id: latestOtp.id },
+            data: { used: true }
+        });
+
+        // Optionally delete all otps for this email
+        await prisma.oTPVerification.deleteMany({
+            where: { email }
+        });
 
         return NextResponse.json({ success: true, message: 'Verified Successfully' });
 

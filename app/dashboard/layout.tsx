@@ -8,7 +8,7 @@ import { LayoutDashboard, ShoppingBag, User, Shield, Users, Inbox, LogOut, Menu,
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-    const { user, dbUser, loading, logOut } = useAuth();
+    const { user, loading, signOut } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -29,7 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     if (!user) return null;
 
-    const isAdmin = dbUser?.role === 'ADMIN' || user.email === 'hritikcsingh@gmail.com';
+    const isAdmin = user?.role === 'ADMIN' || user.email === 'hritikcsingh@gmail.com';
     const isAdminRoute = pathname.startsWith('/dashboard/admin');
 
     const userLinks = [
@@ -50,7 +50,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     const handleLogout = async () => {
         try {
-            await logOut();
+            await signOut();
             router.push('/');
         } catch (error) {
             console.error('Logout failed:', error);
@@ -102,7 +102,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             {user.email?.[0] || 'U'}
                         </div>
                         <div className="overflow-hidden">
-                            <p className="text-sm font-semibold text-slate-900 truncate">{dbUser?.name || 'User'}</p>
+                            <p className="text-sm font-semibold text-slate-900 truncate">{user?.name || 'User'}</p>
                             <p className="text-xs text-slate-500 truncate">{user.email}</p>
                         </div>
                     </div>

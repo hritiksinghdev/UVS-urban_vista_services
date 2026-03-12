@@ -16,10 +16,10 @@ export async function POST(request: NextRequest) {
 
         const otp = Math.floor(100000 + Math.random() * 900000).toString()
 
-        await prisma.otp.create({
+        await prisma.oTPVerification.create({
             data: {
                 email,
-                otp, // In production, hash this
+                otpHash: otp, // In production, hash this
                 type,
                 expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
             }

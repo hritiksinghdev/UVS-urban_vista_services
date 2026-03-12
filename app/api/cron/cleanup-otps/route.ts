@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        const expiredCount = await prisma.otp.deleteMany({
+        const expiredCount = await prisma.oTPVerification.deleteMany({
             where: {
                 expiresAt: { lt: new Date() }
             }

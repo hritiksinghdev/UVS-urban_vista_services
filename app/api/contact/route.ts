@@ -16,8 +16,8 @@ export async function POST(request: NextRequest) {
                 name,
                 email,
                 phone,
-                businessType,
-                businessDetails,
+                business: businessType,
+                message: businessDetails,
                 status: 'NEW'
             }
         })

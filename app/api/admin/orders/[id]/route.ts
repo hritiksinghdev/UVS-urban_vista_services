@@ -21,13 +21,14 @@ async function verifyAdmin(request: NextRequest) {
     return dbUser
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
     try {
+        const { id } = await context.params;
         await verifyAdmin(request)
 
         const body = await request.json()
         const updated = await prisma.order.update({
-            where: { id: params.id },
+            where: { id },
             data: { status: body.status, notes: body.notes }
         })
 

@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
         const users = await prisma.user.findMany({
             include: {
                 orders: true,
-                queries: true
+                contactQueries: true
             },
             orderBy: { createdAt: 'desc' }
         })

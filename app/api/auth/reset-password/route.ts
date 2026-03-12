@@ -11,10 +11,10 @@ export async function POST(request: NextRequest) {
             throw new Error('Missing required fields')
         }
 
-        const validOtp = await prisma.otp.findFirst({
+        const validOtp = await prisma.oTPVerification.findFirst({
             where: {
                 email,
-                otp,
+                otpHash: otp,
                 type: 'PASSWORD_RESET',
                 used: false,
                 expiresAt: { gt: new Date() }
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
             throw new Error('User not found')
         }
 
-        await prisma.otp.update({
+        await prisma.oTPVerification.update({
             where: { id: validOtp.id },
             data: { used: true }
         })
