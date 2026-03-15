@@ -1,36 +1,37 @@
 export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { adminAuth } from '@/lib/firebase-admin'
-import { prisma } from '@/lib/prisma'
-
-async function verifyAdmin(request: NextRequest) {
-    const authHeader = request.headers.get('Authorization')
-    if (!authHeader?.startsWith('Bearer ')) throw new Error('Missing Authorization header')
-    const token = authHeader.split('Bearer ')[1]
-    const decodedToken = await adminAuth.verifyIdToken(token)
-    const dbUser = await prisma.user.findUnique({ where: { firebaseUid: decodedToken.uid } })
-    if (!dbUser || dbUser.role !== 'ADMIN') throw new Error('Forbidden')
-    return dbUser
-}
+import { getUser, updateQuery } from '@/lib/firestore'
 
 export async function PATCH(
-    request: NextRequest,
-    context: { params: Promise<{ id: string }> }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-    try {
-        await verifyAdmin(request)
-        const { id } = await context.params
-        const { status } = await request.json()
-
-        if (!status) return NextResponse.json({ error: 'Status is required' }, { status: 400 })
-
-        const query = await prisma.contactQuery.update({
-            where: { id },
-            data: { status }
-        })
-
-        return NextResponse.json({ success: true, query })
-    } catch (error: unknown) {
-        return NextResponse.json({ error: error instanceof Error ? error.message : 'Error' }, { status: 500 })
+  try {
+    const authHeader = request.headers.get('Authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Unauthorized' }, { status: 401 }
+      )
     }
+    const decoded = await adminAuth.verifyIdToken(
+      authHeader.split('Bearer ')[1]
+    )
+    const admin = await getUser(decoded.uid)
+    if (!admin || admin.role !== 'ADMIN') {
+      return NextResponse.json(
+        { error: 'Forbidden' }, { status: 403 }
+      )
+    }
+    
+    const { id } = await params
+    const body = await request.json()
+    await updateQuery(id, { status: body.status })
+    return NextResponse.json({ success: true })
+  } catch (error: unknown) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Error' },
+      { status: 500 }
+    )
+  }
 }

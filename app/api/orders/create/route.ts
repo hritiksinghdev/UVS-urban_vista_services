@@ -1,50 +1,55 @@
 export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyAndGetUser } from '@/lib/firebase-admin'
-import { prisma } from '@/lib/prisma'
+import { adminAuth } from '@/lib/firebase-admin'
+import { createOrder, getUser } from '@/lib/firestore'
 import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'hritikcsingh@gmail.com'
 
 export async function POST(request: NextRequest) {
-    try {
-        const decoded = await verifyAndGetUser(request)
-        const { serviceName, description, budget, timeline } = await request.json()
-
-        if (!serviceName) {
-            return NextResponse.json({ error: 'Service name is required' }, { status: 400 })
-        }
-
-        const user = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } })
-        if (!user) {
-            return NextResponse.json({ error: 'User not found' }, { status: 404 })
-        }
-
-        const order = await prisma.order.create({
-            data: {
-                userId: user.id,
-                serviceName,
-                description: description || null,
-                budget: budget || null,
-                timeline: timeline || null,
-                status: 'PENDING'
-            }
-        })
-
-        // Notify admin of new order
-        await resend.emails.send({
-            from: 'UrbanVista <no-reply@urbanvistaservices.com>',
-            to: ADMIN_EMAIL,
-            subject: `New Order: ${serviceName} from ${user.name}`,
-            html: `<p>New order received from ${user.name} (${user.email}).</p><p><strong>Service:</strong> ${serviceName}</p><p><strong>Budget:</strong> ${budget || 'Not specified'}</p><p><strong>Timeline:</strong> ${timeline || 'Flexible'}</p>`
-        }).catch(console.error)
-
-        return NextResponse.json({ success: true, order })
-    } catch (error: unknown) {
-        return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Error' },
-            { status: 500 }
-        )
+  try {
+    const authHeader = request.headers.get('Authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Unauthorized' }, { status: 401 }
+      )
     }
+    const decoded = await adminAuth.verifyIdToken(
+      authHeader.split('Bearer ')[1]
+    )
+    const body = await request.json()
+    const user = await getUser(decoded.uid)
+    if (!user) return NextResponse.json(
+      { error: 'User not found' }, { status: 404 }
+    )
+
+    const orderId = await createOrder({
+      userId: decoded.uid,
+      userEmail: decoded.email!,
+      userName: user.name,
+      serviceName: body.serviceName,
+      description: body.description,
+      budget: body.budget,
+      timeline: body.timeline,
+    })
+
+    // Email admin
+    await resend.emails.send({
+      from: 'UrbanVista <no-reply@urbanvistaservices.com>',
+      to: 'hritikcsingh@gmail.com',
+      subject: `New order: ${body.serviceName} from ${user.name}`,
+      html: `<p>New order from ${user.name} 
+        (${decoded.email})</p>
+        <p>Service: ${body.serviceName}</p>
+        <p>Budget: ${body.budget || 'Not specified'}</p>
+        <p>Order ID: ${orderId}</p>`
+    })
+
+    return NextResponse.json({ success: true, orderId })
+  } catch (error: unknown) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Error' },
+      { status: 500 }
+    )
+  }
 }

@@ -38,10 +38,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const ADMIN_EMAIL = 'hritikcsingh@gmail.com';
 
     useEffect(() => {
+        let refreshInterval: NodeJS.Timeout;
+
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
                 const token = await firebaseUser.getIdToken(true);
-                document.cookie = `urbanvista-token=${token}; path=/; max-age=3600; SameSite=Strict; Secure`;
+                document.cookie = `urbanvista-token=${token}; path=/; max-age=86400; SameSite=Lax; Secure`;
 
                 let dbData = null;
                 try {
@@ -66,9 +68,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     emailVerified: firebaseUser.emailVerified || dbData?.emailVerified || false,
                     phoneVerified: dbData?.phoneVerified || false,
                 });
+
+                // Clear any existing interval
+                if (refreshInterval) clearInterval(refreshInterval);
+                
+                // Set up token refresh interval
+                refreshInterval = setInterval(async () => {
+                    const currentUser = auth.currentUser;
+                    if (currentUser) {
+                        const freshToken = await currentUser.getIdToken(true);
+                        document.cookie = `urbanvista-token=${freshToken}; path=/; max-age=86400; SameSite=Lax; Secure`;
+                    }
+                }, 55 * 60 * 1000);
+
             } else {
                 setUser(null);
                 document.cookie = 'urbanvista-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                if (refreshInterval) clearInterval(refreshInterval);
 
                 if (pathname.startsWith('/dashboard')) {
                     router.push('/auth');
@@ -77,7 +93,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setLoading(false);
         });
 
-        return () => unsubscribe();
+        return () => {
+            unsubscribe();
+            if (refreshInterval) clearInterval(refreshInterval);
+        };
     }, [pathname, router]);
 
     const signOut = async () => {

@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    match /users/{userId} {
+      allow read: if request.auth != null 
+        && request.auth.uid == userId;
+      allow write: if false; // only via API
+    }
+    
+    match /orders/{orderId} {
+      allow read: if request.auth != null
+        && request.auth.uid == resource.data.userId;
+      allow write: if false; // only via API
+    }
+    
+    match /contactQueries/{queryId} {
+      allow write: if false; // only via API
+    }
+    
+    match /otpVerifications/{otpId} {
+      allow read, write: if false; // only via API
+    }
+  }
+}

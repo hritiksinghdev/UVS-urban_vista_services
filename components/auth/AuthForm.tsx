@@ -52,13 +52,13 @@ function OTPBoxes({ onComplete, loading }: { onComplete: (otp: string) => void; 
             const filled = [...newValues]
             digits.forEach((d, i) => { if (i < 6) filled[i] = d })
             setValues(filled)
-            refs[Math.min(digits.length, 5)].current?.focus()
+            refs[Math.min(digits.length, 5)]?.current?.focus()
             if (digits.length === 6) onComplete(digits.join(''))
             return
         }
         newValues[index] = value
         setValues(newValues)
-        if (value && index < 5) refs[index + 1].current?.focus()
+        if (value && index < 5) refs[index + 1]?.current?.focus()
         if (newValues.every(v => v !== '') && newValues.join('').length === 6) {
             onComplete(newValues.join(''))
         }
@@ -66,7 +66,7 @@ function OTPBoxes({ onComplete, loading }: { onComplete: (otp: string) => void; 
 
     const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
         if (e.key === 'Backspace' && !values[index] && index > 0) {
-            refs[index - 1].current?.focus()
+            refs[index - 1]?.current?.focus()
         }
     }
 
@@ -91,10 +91,18 @@ function OTPBoxes({ onComplete, loading }: { onComplete: (otp: string) => void; 
 }
 
 export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'signup' | 'signin' }) {
-    const [screen, setScreen] = useState<Screen>(initialMode)
+    const [screen, setScreenState] = useState<Screen>(initialMode)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState('')
+
+    // Switch screen helper to reset states
+    const switchScreen = (newScreen: Screen) => {
+        setError('')
+        setSuccess('')
+        setLoading(false)
+        setScreenState(newScreen)
+    }
 
     // Signup fields
     const [name, setName] = useState('')
@@ -108,9 +116,13 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
 
     // OTP / Forgot
     const [otpEmail, setOtpEmail] = useState('')
+    const [verifiedOtp, setVerifiedOtp] = useState('')
     const [newPassword, setNewPassword] = useState('')
     const [countdown, setCountdown] = useState(60)
     const [canResend, setCanResend] = useState(false)
+    
+    // Post-signin profile verification loading text
+    const [postLoginMessage, setPostLoginMessage] = useState('')
 
     const router = useRouter()
 
@@ -149,10 +161,11 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
         e.preventDefault()
         setLoading(true)
         setError('')
+        setPostLoginMessage('')
         try {
             const credential = await signInWithEmailAndPassword(auth, email.trim(), password)
-            const token = await credential.user.getIdToken()
-            document.cookie = `urbanvista-token=${token}; path=/; max-age=3600; SameSite=Strict`
+            const token = await credential.user.getIdToken(true)
+            document.cookie = `urbanvista-token=${token}; path=/; max-age=86400; SameSite=Lax; Secure`
 
             // Sync user
             await fetch('/api/auth/sync-user', {
@@ -162,6 +175,7 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
             })
 
             // Check if admin
+            setPostLoginMessage('Signing you in...')
             const profileRes = await fetch('/api/user/profile', {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
@@ -186,8 +200,8 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
             } else {
                 setError(err instanceof Error ? err.message : 'Sign in failed')
             }
-        } finally {
             setLoading(false)
+            setPostLoginMessage('')
         }
     }
 
@@ -208,24 +222,7 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
         setLoading(true)
         setError('')
         try {
-            const credential = await createUserWithEmailAndPassword(auth, email.trim(), password)
-            const firebaseUser = credential.user
-            await updateProfile(firebaseUser, { displayName: name })
-
-            const token = await firebaseUser.getIdToken()
-
-            await fetch('/api/auth/sync-user', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({
-                    name,
-                    email: email.trim(),
-                    phone: `+91${phone.replace(/\D/g, '')}`,
-                    businessType,
-                    emailVerified: false
-                })
-            })
-
+            // STEP 1: Send OTP FIRST before creating Firebase account
             const otpRes = await fetch('/api/auth/send-otp', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -235,21 +232,10 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
             if (!otpRes.ok) throw new Error('Failed to send verification email')
 
             setOtpEmail(email.trim())
-            setScreen('verify-email-otp')
+            switchScreen('verify-email-otp')
             setSuccess('Verification code sent to ' + email)
         } catch (err: unknown) {
-            const { FirebaseError } = await import('firebase/app')
-            if (err instanceof FirebaseError) {
-                const msgs: Record<string, string> = {
-                    'auth/email-already-in-use': 'Account already exists. Sign in instead.',
-                    'auth/weak-password': 'Password too weak.',
-                    'auth/invalid-email': 'Invalid email address.'
-                }
-                setError(msgs[err.code] || err.message)
-            } else {
-                setError(err instanceof Error ? err.message : 'Signup failed')
-            }
-        } finally {
+            setError(err instanceof Error ? err.message : 'Signup initialization failed')
             setLoading(false)
         }
     }
@@ -258,13 +244,11 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
         setLoading(true)
         setError('')
         try {
-            const currentUser = auth.currentUser
-            if (!currentUser) throw new Error('Session expired. Please sign up again.')
-
+            // STEP 2: Verify OTP
             const res = await fetch('/api/auth/verify-otp', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: otpEmail, otp, type: 'EMAIL_VERIFY', uid: currentUser.uid })
+                body: JSON.stringify({ email: otpEmail, otp, type: 'EMAIL_VERIFY' }) // No uid yet
             })
 
             if (!res.ok) {
@@ -272,18 +256,30 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
                 throw new Error(data.error || 'Invalid OTP')
             }
 
-            await currentUser.reload()
-            const token = await currentUser.getIdToken(true)
-            document.cookie = `urbanvista-token=${token}; path=/; max-age=3600; SameSite=Strict`
+            // STEP 3: Create Firebase Account NOW
+            const credential = await createUserWithEmailAndPassword(auth, otpEmail, password)
+            const firebaseUser = credential.user
+            await updateProfile(firebaseUser, { displayName: name })
 
+            // Get fresh token
+            const token = await firebaseUser.getIdToken(true)
+            document.cookie = `urbanvista-token=${token}; path=/; max-age=86400; SameSite=Lax; Secure`
+
+            // Sync user to db
             await fetch('/api/auth/sync-user', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ name, email: otpEmail, emailVerified: true })
+                body: JSON.stringify({ 
+                    name, 
+                    email: otpEmail,
+                    phone: `+91${phone.replace(/\D/g, '')}`,
+                    businessType,
+                    emailVerified: true 
+                })
             })
 
-            setScreen('success')
-            setTimeout(() => { window.location.href = '/dashboard' }, 2500)
+            switchScreen('success')
+            setTimeout(() => { window.location.href = '/dashboard' }, 2000)
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : 'Verification failed')
         } finally {
@@ -302,7 +298,7 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: otpEmail })
             })
-            setScreen('forgot-otp')
+            switchScreen('forgot-otp')
             setSuccess('If this email is registered, a reset code was sent.')
         } catch {
             setError('Failed to send reset code')
@@ -315,18 +311,47 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
         setLoading(true)
         setError('')
         try {
-            if (!newPassword) { setError('Enter new password'); setLoading(false); return }
+            // Check if OTP is valid
+            const res = await fetch('/api/auth/verify-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: otpEmail, otp, type: 'PASSWORD_RESET' })
+            })
+            if (!res.ok) {
+                const d = await res.json()
+                throw new Error(d.error || 'Invalid OTP')
+            }
+            // Store verified OTP and move to new password screen
+            setVerifiedOtp(otp)
+            switchScreen('new-password')
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'OTP Verification failed')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleResetPassword = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!newPassword || newPassword.length < 8) {
+            setError('Password must be at least 8 characters')
+            return
+        }
+        setLoading(true)
+        setError('')
+        try {
             const res = await fetch('/api/auth/reset-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: otpEmail, otp, newPassword })
+                body: JSON.stringify({ email: otpEmail, otp: verifiedOtp, newPassword })
             })
             if (!res.ok) {
                 const d = await res.json()
                 throw new Error(d.error || 'Reset failed')
             }
-            setSuccess('Password reset successful!')
-            setTimeout(() => setScreen('signin'), 2000)
+            
+            switchScreen('signin')
+            setSuccess('Password updated! Sign in.')
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : 'Reset failed')
         } finally {
@@ -419,7 +444,7 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
         if (screen === 'verify-email-otp') {
             return (
                 <div>
-                    <button onClick={() => setScreen('signup')} className="flex items-center gap-1 text-sm text-slate-400 hover:text-slate-600 mb-8 transition-colors">
+                    <button onClick={() => switchScreen('signup')} className="flex items-center gap-1 text-sm text-slate-400 hover:text-slate-600 mb-8 transition-colors">
                         <ChevronLeft className="w-4 h-4" /> Back
                     </button>
                     <div className="text-center mb-8">
@@ -454,7 +479,7 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
         if (screen === 'forgot-email') {
             return (
                 <form onSubmit={handleForgotSendOtp} className="space-y-5">
-                    <button type="button" onClick={() => setScreen('signin')} className="flex items-center gap-1 text-sm text-slate-400 hover:text-slate-600 mb-2 transition-colors">
+                    <button type="button" onClick={() => switchScreen('signin')} className="flex items-center gap-1 text-sm text-slate-400 hover:text-slate-600 mb-2 transition-colors">
                         <ChevronLeft className="w-4 h-4" /> Back to sign in
                     </button>
                     <div className="mb-6">
@@ -474,7 +499,7 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
         if (screen === 'forgot-otp') {
             return (
                 <div className="space-y-5">
-                    <button type="button" onClick={() => setScreen('forgot-email')} className="flex items-center gap-1 text-sm text-slate-400 hover:text-slate-600 mb-2 transition-colors">
+                    <button type="button" onClick={() => switchScreen('forgot-email')} className="flex items-center gap-1 text-sm text-slate-400 hover:text-slate-600 mb-2 transition-colors">
                         <ChevronLeft className="w-4 h-4" /> Back
                     </button>
                     <div className="text-center mb-6">
@@ -484,14 +509,6 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
                     </div>
                     {error && <div className="p-3 rounded-xl bg-red-50 text-red-600 text-sm text-center">{error}</div>}
                     {success && <div className="p-3 rounded-xl bg-green-50 text-green-600 text-sm text-center">{success}</div>}
-                    <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">New Password</label>
-                        <div className="relative">
-                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Lock className="w-4 h-4" /></div>
-                            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="New password (8+ chars)"
-                                className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm" />
-                        </div>
-                    </div>
                     <OTPBoxes onComplete={(otp) => handleForgotVerifyOtp(otp)} loading={loading} />
                     <div className="text-center mt-2">
                         {canResend ? (
@@ -501,6 +518,26 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
                         )}
                     </div>
                 </div>
+            )
+        }
+
+        if (screen === 'new-password') {
+            return (
+                <form onSubmit={handleResetPassword} className="space-y-5">
+                    <div className="mb-6">
+                        <h2 className="text-2xl font-bold text-slate-900">Set New Password</h2>
+                        <p className="text-slate-500 text-sm mt-1">Please enter your new password below.</p>
+                    </div>
+                    {error && <div className="p-3 rounded-xl bg-red-50 text-red-600 text-sm">{error}</div>}
+                    {formField('New Password', showPassword ? 'text' : 'password', newPassword, setNewPassword, <Lock className="w-4 h-4" />, 'Min. 8 characters',
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="text-slate-400 hover:text-slate-600">
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                    )}
+                    <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl py-3.5 transition-all flex items-center justify-center gap-2 disabled:opacity-70 mt-2">
+                        {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <>Update Password <ArrowRight className="w-4 h-4" /></>}
+                    </button>
+                </form>
             )
         }
 
@@ -550,7 +587,7 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
                     </button>
                     <p className="text-center text-sm text-slate-400">
                         Already have an account?{' '}
-                        <button type="button" onClick={() => { setError(''); setScreen('signin') }} className="text-blue-600 font-semibold hover:underline">Sign in</button>
+                        <button type="button" onClick={() => switchScreen('signin')} className="text-blue-600 font-semibold hover:underline">Sign in</button>
                     </p>
                 </form>
             )
@@ -564,6 +601,7 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
                     <p className="text-slate-500 text-sm mt-1">Sign in to your UrbanVista account</p>
                 </div>
                 {error && <div className="p-3 rounded-xl bg-red-50 text-red-600 text-sm">{error}</div>}
+                {success && <div className="p-3 rounded-xl bg-green-50 text-green-600 text-sm">{success}</div>}
                 {formField('Email Address', 'email', email, setEmail, <Mail className="w-4 h-4" />, 'you@business.com')}
                 {formField('Password', showPassword ? 'text' : 'password', password, setPassword, <Lock className="w-4 h-4" />, 'Your password',
                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="text-slate-400 hover:text-slate-600">
@@ -571,16 +609,25 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
                     </button>
                 )}
                 <div className="text-right -mt-2">
-                    <button type="button" onClick={() => { setError(''); setOtpEmail(email); setScreen('forgot-email') }} className="text-blue-600 text-sm font-medium hover:underline">
+                    <button type="button" onClick={() => { setOtpEmail(email); switchScreen('forgot-email') }} className="text-blue-600 text-sm font-medium hover:underline">
                         Forgot password?
                     </button>
                 </div>
-                <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl py-3.5 transition-all flex items-center justify-center gap-2 disabled:opacity-70">
-                    {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <>Sign In <ArrowRight className="w-4 h-4" /></>}
+                <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl py-3.5 transition-all flex items-center flex-col justify-center gap-1 disabled:opacity-70">
+                    {loading ? (
+                        <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            {postLoginMessage && <span className="text-sm font-medium">{postLoginMessage}</span>}
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            Sign In <ArrowRight className="w-4 h-4" />
+                        </div>
+                    )}
                 </button>
                 <p className="text-center text-sm text-slate-400">
                     New to UrbanVista?{' '}
-                    <button type="button" onClick={() => { setError(''); setScreen('signup') }} className="text-blue-600 font-semibold hover:underline">Create an account</button>
+                    <button type="button" onClick={() => switchScreen('signup')} className="text-blue-600 font-semibold hover:underline">Create an account</button>
                 </p>
             </form>
         )
