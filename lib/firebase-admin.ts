@@ -14,11 +14,7 @@ function initFirebaseAdmin() {
   const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n')
 
   if (!projectId || !clientEmail || !privateKey) {
-    // In production, this is a fatal misconfiguration
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('Firebase Admin SDK: Missing required environment variables')
-    }
-    console.warn('[firebase-admin] Missing env vars — Admin SDK not initialized (dev mode)')
+    console.warn('[firebase-admin] Missing env vars — Admin SDK not initialized')
     return
   }
 
