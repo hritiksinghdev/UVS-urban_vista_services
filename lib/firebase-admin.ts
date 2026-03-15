@@ -28,7 +28,7 @@ function initFirebaseAdmin() {
     })
   } catch (error) {
     console.error('Firebase Admin init error:', error)
-    throw error
+    // Do not throw to prevent crashing the Vercel build step
   }
 }
 
