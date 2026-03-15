@@ -5,7 +5,7 @@ import { adminAuth } from '@/lib/firebase-admin'
 import { Resend } from 'resend'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+const resend = new Resend(process.env.RESEND_API_KEY || 're_123')
 
 export async function POST(request: NextRequest) {
   try {

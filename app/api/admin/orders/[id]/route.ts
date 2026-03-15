@@ -4,7 +4,7 @@ import { adminAuth } from '@/lib/firebase-admin'
 import { getUser, updateOrder } from '@/lib/firestore'
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+const resend = new Resend(process.env.RESEND_API_KEY || 're_123')
 
 export async function PATCH(
   request: NextRequest,
