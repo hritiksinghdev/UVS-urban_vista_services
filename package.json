@@ -10,9 +10,6 @@
     },
     "dependencies": {
         "@gsap/react": "^2.1.2",
-        "@neondatabase/serverless": "^1.0.2",
-        "@prisma/adapter-neon": "^7.5.0",
-        "@prisma/client": "^7.5.0",
         "@react-email/components": "0.0.33",
         "@react-three/drei": "^10.7.7",
         "@react-three/fiber": "^9.5.0",

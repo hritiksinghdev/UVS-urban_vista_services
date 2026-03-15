@@ -17,6 +17,7 @@ type Screen =
     | 'forgot-email'
     | 'forgot-otp'
     | 'new-password'
+    | 'verify-phone-otp'
     | 'success'
 
 const BUSINESS_TYPES = [
@@ -127,14 +128,14 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
     const router = useRouter()
 
     useEffect(() => {
-        if (screen === 'verify-email-otp' || screen === 'forgot-otp') {
+        if (screen === 'verify-email-otp' || screen === 'verify-phone-otp' || screen === 'forgot-otp') {
             setCountdown(60)
             setCanResend(false)
         }
     }, [screen])
 
     useEffect(() => {
-        if ((screen === 'verify-email-otp' || screen === 'forgot-otp') && countdown > 0) {
+        if ((screen === 'verify-email-otp' || screen === 'verify-phone-otp' || screen === 'forgot-otp') && countdown > 0) {
             const t = setTimeout(() => setCountdown(c => c - 1), 1000)
             return () => clearTimeout(t)
         } else if (countdown === 0) {
@@ -146,16 +147,24 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
         setCanResend(false)
         setCountdown(60)
         try {
-            await fetch('/api/auth/send-otp', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: otpEmail, type: screen === 'forgot-otp' ? 'PASSWORD_RESET' : 'EMAIL_VERIFY', name })
-            })
+            if (screen === 'verify-phone-otp') {
+                await fetch('/api/auth/send-phone-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone: `+91${phone}`, type: 'PHONE_VERIFY' })
+                })
+            } else {
+                await fetch('/api/auth/send-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: otpEmail, type: screen === 'forgot-otp' ? 'PASSWORD_RESET' : 'EMAIL_VERIFY', name })
+                })
+            }
             setSuccess('New code sent!')
         } catch {
             setError('Failed to resend code')
         }
-    }, [otpEmail, screen, name])
+    }, [otpEmail, screen, name, phone])
 
     const handleSignin = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -244,7 +253,7 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
         setLoading(true)
         setError('')
         try {
-            // STEP 2: Verify OTP
+            // STEP 2: Verify Email OTP
             const res = await fetch('/api/auth/verify-otp', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -253,10 +262,45 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
 
             if (!res.ok) {
                 const data = await res.json()
-                throw new Error(data.error || 'Invalid OTP')
+                throw new Error(data.error || 'Invalid Email OTP')
             }
 
-            // STEP 3: Create Firebase Account NOW
+            // STEP 3: Now send Phone OTP and transition screen
+            const phoneRes = await fetch('/api/auth/send-phone-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: `+91${phone}`, type: 'PHONE_VERIFY' })
+            })
+            
+            if (!phoneRes.ok) throw new Error('Failed to send phone verification SMS')
+            
+            setSuccess('Email verified. Now check your phone for an SMS.')
+            switchScreen('verify-phone-otp')
+            
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Verification failed')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleVerifyPhoneOTP = async (otp: string) => {
+        setLoading(true)
+        setError('')
+        try {
+            // STEP 4: Verify Phone OTP
+            const res = await fetch('/api/auth/verify-phone-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: `+91${phone}`, otp, type: 'PHONE_VERIFY' })
+            })
+
+            if (!res.ok) {
+                const data = await res.json()
+                throw new Error(data.error || 'Invalid Phone OTP')
+            }
+
+            // STEP 5: Create Firebase Account NOW
             const credential = await createUserWithEmailAndPassword(auth, otpEmail, password)
             const firebaseUser = credential.user
             await updateProfile(firebaseUser, { displayName: name })
@@ -462,6 +506,41 @@ export default function AuthForm({ initialMode = 'signup' }: { initialMode?: 'si
                         {canResend ? (
                             <button onClick={handleResendOtp} className="text-blue-600 font-semibold text-sm hover:underline">
                                 Resend Code
+                            </button>
+                        ) : (
+                            <p className="text-slate-400 text-sm">Resend in 0:{String(countdown).padStart(2, '0')}</p>
+                        )}
+                    </div>
+                    {loading && (
+                        <div className="mt-6 flex justify-center">
+                            <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                    )}
+                </div>
+            )
+        }
+
+        if (screen === 'verify-phone-otp') {
+            return (
+                <div>
+                    <button onClick={() => switchScreen('verify-email-otp')} className="flex items-center gap-1 text-sm text-slate-400 hover:text-slate-600 mb-8 transition-colors">
+                        <ChevronLeft className="w-4 h-4" /> Back to Email Verification
+                    </button>
+                    <div className="text-center mb-8">
+                        <div className="text-4xl mb-3">📱</div>
+                        <h2 className="text-2xl font-bold text-slate-900 mb-2">Check your phone</h2>
+                        <p className="text-slate-500 text-sm">
+                            We sent a 6-digit SMS code to<br />
+                            <span className="text-blue-600 font-semibold">+91 {phone}</span>
+                        </p>
+                    </div>
+                    {error && <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm text-center">{error}</div>}
+                    {success && <div className="mb-4 p-3 rounded-xl bg-green-50 text-green-600 text-sm text-center">{success}</div>}
+                    <OTPBoxes onComplete={handleVerifyPhoneOTP} loading={loading} />
+                    <div className="text-center mt-6">
+                        {canResend ? (
+                            <button onClick={handleResendOtp} className="text-blue-600 font-semibold text-sm hover:underline">
+                                Resend SMS
                             </button>
                         ) : (
                             <p className="text-slate-400 text-sm">Resend in 0:{String(countdown).padStart(2, '0')}</p>

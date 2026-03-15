@@ -44,11 +44,11 @@ source and https://pris
 .ly/d/prisma7-client-co
 nfig
   -->  
-prisma\schema.prisma:7
+prisma\schema.prisma:8
    | 
- 6 |   provider = 
+ 7 |   provider = 
 "postgresql"
- 7 |   url      = 
+ 8 |   url      = 
 env("DATABASE_URL")
    | 
 
@@ -57,4 +57,4 @@ Count: 1
 [Context: getConfig]
 
 Prisma CLI Version : 
-7.4.1
+7.5.0
